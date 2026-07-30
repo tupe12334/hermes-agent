@@ -23,6 +23,68 @@ Full reference: https://hermes-agent.nousresearch.com/docs/user-guide/configurat
 
 `hermes config check` reports sections missing from an older config.
 
+### Messaging final-result-only mode
+
+Use this when a messaging surface (Discord, Telegram, Slack, etc.) is showing
+gateway execution logs, tool progress, interim assistant commentary, reasoning
+summaries, or repeated "still working" status messages and the user wants only
+the final answer.
+
+Prefer per-platform overrides when the user only complains about one surface;
+use global settings when they want every gateway surface quiet. The gateway
+resolves `display.platforms.<platform>.<key>` first, then global `display.<key>`,
+then platform defaults. YAML may store bare `off` as boolean `false`; Hermes'
+gateway display resolver normalizes `false` to tool-progress `off`, so the
+warning from `hermes config set` can be ignored or avoided with `--force`.
+
+Discord-only quiet/final mode:
+
+```bash
+hermes config set display.platforms.discord.tool_progress off --force
+hermes config set display.platforms.discord.interim_assistant_messages false
+hermes config set display.platforms.discord.long_running_notifications false
+hermes config set display.platforms.discord.busy_ack_detail false
+hermes config set display.platforms.discord.show_reasoning false
+```
+
+All messaging surfaces quiet/final mode:
+
+```bash
+hermes config set display.tool_progress off --force
+hermes config set display.interim_assistant_messages false
+hermes config set display.long_running_notifications false
+hermes config set display.busy_ack_detail false --force
+hermes config set display.show_reasoning false
+```
+
+Verification:
+
+```bash
+python - <<'PY'
+from pathlib import Path
+import os, yaml
+home = Path(os.environ.get('HERMES_HOME', '~/.hermes')).expanduser()
+cfg = yaml.safe_load((home / 'config.yaml').read_text()) or {}
+display = cfg.get('display') or {}
+print('global:', {k: display.get(k) for k in (
+    'tool_progress', 'interim_assistant_messages',
+    'long_running_notifications', 'busy_ack_detail', 'show_reasoning')})
+print('discord:', (display.get('platforms') or {}).get('discord'))
+PY
+```
+
+Notes:
+
+- `display.interim_assistant_messages=false` suppresses assistant commentary
+  emitted alongside tool calls before the final answer.
+- `display.long_running_notifications=false` suppresses periodic heartbeat/status
+  messages while a long turn is running.
+- `display.busy_ack_detail=false` keeps busy-turn acknowledgements terse; for
+  silent steering acknowledgements specifically, set
+  `display.busy_steer_ack_enabled=false`.
+- If a surface still shows chatter, inspect platform-specific overrides before
+  changing global settings.
+
 ### Toolsets
 
 Enable/disable via `hermes tools` (interactive) or `hermes tools enable/disable NAME`.
